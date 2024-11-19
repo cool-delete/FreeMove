@@ -15,24 +15,11 @@
 //    along with this program.If not, see<http://www.gnu.org/licenses/>.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
-namespace FreeMove
+namespace FreeMove.IO
 {
-    static class Program
+    public class CopyFailedException : Exception
     {
-        /// <summary>
-        /// Punto di ingresso principale dell'applicazione.
-        /// </summary>
-        [STAThread]
-        static void Main(string[] args)
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Form1(args));
-        }
+        public CopyFailedException(string message, Exception innerException) : base(message, innerException) { }
     }
 }

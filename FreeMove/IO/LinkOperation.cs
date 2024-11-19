@@ -37,7 +37,7 @@ namespace FreeMove.IO
         {
             return Task.Run(() =>
             {
-                return IOHelper.MakeLink(directory, symlink);
+                return IOHelper.MakeDirLink(directory, symlink);
             }, cts.Token);
         }
 

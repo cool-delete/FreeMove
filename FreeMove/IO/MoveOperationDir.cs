@@ -24,21 +24,20 @@ using System.Threading.Tasks;
 
 namespace FreeMove.IO
 {
-    class MoveOperation : IOOperation
+    class MoveOperationDir : IOOperation
     {
         string pathFrom;
         string pathTo;
         bool sameDrive;
         CancellationTokenSource cts = new CancellationTokenSource();
         CopyOperation innerCopy;
-        Form1 form = new Form1();
 
-        public MoveOperation(string pathFrom, string pathTo)
+        public MoveOperationDir(string pathFrom, string pathTo)
         {
             this.pathFrom = pathFrom;
             this.pathTo = pathTo;
             sameDrive = string.Equals(Path.GetPathRoot(pathFrom), Path.GetPathRoot(pathTo), StringComparison.OrdinalIgnoreCase);
-            if (form.chkBox_createDest.Checked && !Directory.Exists(pathTo))
+            if (Form1.Singleton.chkBox_createDest.Checked && !Directory.Exists(pathTo))
             {
                 try
                 {
@@ -88,7 +87,7 @@ namespace FreeMove.IO
                     {
                         await innerCopy.Run();
                     }
-                    catch (Exception e) when (!(e is OperationCanceledException)) // Wrap inner exceptions to signal which phase failed
+                    catch (Exception e) when (e is not OperationCanceledException) // Wrap inner exceptions to signal which phase failed
                     {
                         throw new CopyFailedException("Exception encountered while copying directory", e);
                     }
@@ -106,20 +105,8 @@ namespace FreeMove.IO
             }
             finally
             {
-                OnEnd(new EventArgs());
+                OnEnd(EventArgs.Empty);
             }
-        }
-        public class MoveFailedException : Exception
-        {
-            public MoveFailedException(string message, Exception innerException) : base(message, innerException) { }
-        }
-        public class CopyFailedException : Exception
-        {
-            public CopyFailedException(string message, Exception innerException) : base(message, innerException) { }
-        }
-        public class DeleteFailedException : Exception
-        {
-            public DeleteFailedException(string message, Exception innerException) : base(message, innerException) { }
         }
     }
 }

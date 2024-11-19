@@ -27,18 +27,27 @@ using System.IO;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
+using static System.Windows.Forms.LinkLabel;
 
 namespace FreeMove
 {
     public partial class Form1 : Form
     {
+        public static Form1 Singleton;
+
         bool safeMode = true;
 
         #region Initialization
         public Form1()
         {
+            Singleton = this;
             //Initialize UI elements
             InitializeComponent();
+        }
+
+        public Form1(string[] args) : this()
+        {
+            textBox_From.Text = string.Join(" ", args);
         }
 
         private async void Form1_Load(object sender, EventArgs e)
@@ -77,12 +86,12 @@ namespace FreeMove
 
         #endregion
 
-        private bool PreliminaryCheck(string source, string destination)
+        private bool PreliminaryCheck(string source, string destination, out bool isFile)
         {
             //Check for errors before copying
             try
             {
-                IOHelper.CheckDirectories(source, destination, safeMode);
+                IOHelper.CheckDirectories(source, destination, safeMode, out isFile);
             }
             catch(AggregateException ae)
             {
@@ -92,6 +101,7 @@ namespace FreeMove
                     msg += ex.Message + "\n";
                 }
                 MessageBox.Show(msg, "Error");
+                isFile = false;
                 return false;
             }
             return true;
@@ -100,15 +110,51 @@ namespace FreeMove
         private async void Begin()
         {
             Enabled = false;
-            string source = textBox_From.Text.TrimEnd('\\');
-            string destination = Path.Combine(textBox_To.Text.Length > 3 ? textBox_To.Text.TrimEnd('\\') : textBox_To.Text, Path.GetFileName(source));
 
-            if (PreliminaryCheck(source, destination))
+            string source = textBox_From.Text.Replace("\"", string.Empty);
+            string destination = textBox_To.Text.Replace("\"", string.Empty);
+
+            if (destination.EndsWith($"{Path.DirectorySeparatorChar}")
+                || destination.EndsWith($"{Path.AltDirectorySeparatorChar}"))
+            {
+                destination = Path.Combine(
+                    destination.Length > 3
+                    ? destination.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    : destination, Path.GetFileName(source));
+            }
+            else
+            {
+                if (Path.HasExtension(source))
+                    destination = Path.ChangeExtension(destination, Path.GetExtension(source));
+            }
+
+            string currentDir = null;
+            bool currentDirMov = false;
+
+            if (PreliminaryCheck(source, destination, out bool isFile))
             {
                 try
                 {
-                    await BeginMove(source, destination);
-                    Symlink(destination, source);
+                    source = IOHelper.NormalizePath(source);
+                    destination = IOHelper.NormalizePath(destination);
+                    currentDir = IOHelper.NormalizePath(Directory.GetCurrentDirectory());
+
+                    if (source.ToLower().Contains(currentDir.ToLower()))
+                    {
+                        Directory.SetCurrentDirectory(Path.GetPathRoot(currentDir));
+                        currentDirMov = true;
+                    }
+
+                    if (isFile)
+                    {
+                        await BeginMoveFile(source, destination);
+                        IOHelper.MakeFileLink(destination, source);
+                    }
+                    else
+                    {
+                        await BeginMoveDirectory(source, destination);
+                        IOHelper.MakeDirLink(destination, source);
+                    }
 
                     if (chkBox_originalHidden.Checked)
                     {
@@ -119,14 +165,21 @@ namespace FreeMove
 
                     MessageBox.Show(this, "Done!");
                 }
-                catch (IO.MoveOperation.CopyFailedException ex)
+                catch (IO.CopyFailedException ex)
                 {
                     switch (MessageBox.Show(this, string.Format($"Do you want to undo the changes?\n\nDetails:\n{ex.InnerException.Message}"), ex.Message, MessageBoxButtons.YesNo, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1))
                     {
                         case DialogResult.Yes:
                             try
                             {
-                                Directory.Delete(destination, true);
+                                if (isFile)
+                                {
+                                    File.Delete(destination);
+                                }
+                                else
+                                {
+                                    Directory.Delete(destination, true);
+                                }
                             }
                             catch (Exception ie)
                             {
@@ -138,14 +191,17 @@ namespace FreeMove
                             break;
                     }
                 }
-                catch (IO.MoveOperation.DeleteFailedException ex)
+                catch (IO.DeleteFailedException ex)
                 {
                     switch (MessageBox.Show(this, string.Format($"Do you want to undo the changes?\n\nDetails:\n{ex.InnerException.Message}"), ex.Message, MessageBoxButtons.YesNo, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1))
                     {
                         case DialogResult.Yes:
                             try
                             {
-                                await BeginMove(destination, source);
+                                if (isFile)
+                                    await BeginMoveFile(destination, source);
+                                else
+                                    await BeginMoveDirectory(destination, source);
                             }
                             catch (Exception ie)
                             {
@@ -157,7 +213,7 @@ namespace FreeMove
                             break;
                     }
                 }
-                catch (IO.MoveOperation.MoveFailedException ex)
+                catch (IO.MoveFailedException ex)
                 {
                     MessageBox.Show(this, string.Format($"Details:\n{ex.InnerException.Message}"), ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -168,8 +224,17 @@ namespace FreeMove
                         case DialogResult.Yes:
                             try
                             {
-                                if (Directory.Exists(destination))
-                                    Directory.Delete(destination, true);
+                                if (isFile)
+                                {
+                                    if (File.Exists(destination))
+                                        File.Delete(destination);
+                                }
+                                else
+                                {
+                                    if (Directory.Exists(destination))
+                                        Directory.Delete(destination, true);
+                                }
+                                
                             }
                             catch (Exception ie)
                             {
@@ -178,16 +243,56 @@ namespace FreeMove
                             break;
                     }
                 }
+                finally
+                {
+                    if (currentDir != null && currentDirMov)
+                    {
+                        currentDir = IOHelper.GetDeepestExistingDirectory(currentDir);
+                        Directory.SetCurrentDirectory(currentDir);
+                    }
+                }
             }
             Enabled = true;
         }
 
-        private async Task BeginMove(string source, string destination)
+        private async Task BeginMoveFile(string source, string destination)
+        {
+            using (ProgressDialog progressDialog = new ProgressDialog("Moving the file..."))
+            {
+                IO.MoveOperationFile moveOp = IOHelper.MoveFile(source, destination);
+
+                moveOp.ProgressChanged += (sender, e) => progressDialog.UpdateProgress(e);
+                moveOp.End += (sender, e) => progressDialog.Invoke((Action)progressDialog.Close);
+
+                progressDialog.CancelRequested += (sender, e) =>
+                {
+                    if (DialogResult.Yes == MessageBox.Show(this, "Are you sure you want to cancel?", "Cancel confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2))
+                    {
+                        moveOp.Cancel();
+                        progressDialog.BeginInvoke(new Action(() => progressDialog.Cancellable = false));
+                    }
+                };
+
+                Task task = moveOp.Run();
+
+                progressDialog.ShowDialog(this);
+                try
+                {
+                    await task;
+                }
+                finally
+                {
+                    progressDialog.Close();
+                }
+            }
+        }
+
+        private async Task BeginMoveDirectory(string source, string destination)
         {
             //Move files
             using (ProgressDialog progressDialog = new ProgressDialog("Moving files..."))
             {
-                IO.MoveOperation moveOp = IOHelper.MoveDir(source, destination);
+                IO.MoveOperationDir moveOp = IOHelper.MoveDir(source, destination);
 
                 moveOp.ProgressChanged += (sender, e) => progressDialog.UpdateProgress(e);
                 moveOp.End += (sender, e) => progressDialog.Invoke((Action)progressDialog.Close);
@@ -213,11 +318,6 @@ namespace FreeMove
                     progressDialog.Close();
                 }
             }
-        }
-
-        private void Symlink(string destination, string link)
-        {
-            IOHelper.MakeLink(destination, link);
         }
 
         //Configure tooltips

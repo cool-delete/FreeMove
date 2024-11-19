@@ -36,7 +36,7 @@ namespace FreeMove.IO
 
         public override async Task Run()
         {
-            OnStart(new EventArgs());
+            OnStart(EventArgs.Empty);
 
             try
             {
@@ -46,7 +46,7 @@ namespace FreeMove.IO
             }
             finally
             {
-                OnEnd(new EventArgs());
+                OnEnd(EventArgs.Empty);
             }
         }
 

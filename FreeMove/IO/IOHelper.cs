@@ -26,13 +26,20 @@ using System.Threading.Tasks;
 
 namespace FreeMove
 {
-    class IOHelper
+    static class IOHelper
     {
+        static string[] Blacklist = 
+        { 
+            @"C:\Windows", 
+            @"C:\Windows\System32", 
+            @"C:\Windows\Config", 
+            @"C:\ProgramData" 
+        };
+
         #region SymLink
         //External dll functions
         [DllImport("kernel32.dll")]
-        static extern bool CreateSymbolicLink(
-        string lpSymlinkFileName, string lpTargetFileName, SymbolicLink dwFlags);
+        static extern bool CreateSymbolicLink(string lpSymlinkFileName, string lpTargetFileName, SymbolicLink dwFlags);
 
         enum SymbolicLink
         {
@@ -40,18 +47,56 @@ namespace FreeMove
             Directory = 1
         }
 
-        public static bool MakeLink(string directory, string symlink)
+        public static bool MakeDirLink(string directory, string symlink)
         {
             return CreateSymbolicLink(symlink, directory, SymbolicLink.Directory);
         }
+
+        public static bool MakeFileLink(string directory, string symlink)
+        {
+            return CreateSymbolicLink(symlink, directory, SymbolicLink.File);
+        }
         #endregion
 
-        public static IO.MoveOperation MoveDir(string source, string destination)
+        public static IO.MoveOperationFile MoveFile(string source, string destination)
         {
-            return new IO.MoveOperation(source, destination);
+            return new IO.MoveOperationFile(source, destination);
         }
-        public static void CheckDirectories(string source, string destination, bool safeMode)
+
+        public static IO.MoveOperationDir MoveDir(string source, string destination)
         {
+            return new IO.MoveOperationDir(source, destination);
+        }
+
+        public static string NormalizePath(string path)
+        {
+            return Path.GetFullPath(new Uri(path).LocalPath)
+                       .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        public static string GetDeepestExistingDirectory(string fullPath)
+        {
+            string currentPath = fullPath;
+            while (true)
+            {
+                if (Directory.Exists(currentPath))
+                {
+                    return currentPath;
+                }
+
+                string parentDir = Path.GetDirectoryName(currentPath);
+                if (parentDir == null || parentDir == currentPath)
+                {
+                    return null;
+                }
+
+                currentPath = parentDir;
+            }
+        }
+
+        public static void CheckDirectories(string source, string destination, bool safeMode, out bool isFile)
+        {
+            isFile = false;
             List<Exception> exceptions = new List<Exception>();
             //Check for correct file path format
             try
@@ -70,10 +115,9 @@ namespace FreeMove
             }
 
             //Check if the chosen directory is blacklisted
-            string[] Blacklist = { @"C:\Windows", @"C:\Windows\System32", @"C:\Windows\Config", @"C:\ProgramData" };
             foreach (string item in Blacklist)
             {
-                if (source == item)
+                if (item.Equals(source, StringComparison.OrdinalIgnoreCase))
                 {
                     exceptions.Add(new Exception($"The \"{source}\" directory cannot be moved."));
                 }
@@ -81,26 +125,49 @@ namespace FreeMove
 
             //Check if folder is critical
             if (safeMode && (
-                source == Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) ||
-                source == Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)))
+                 source.Equals(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), StringComparison.OrdinalIgnoreCase)
+                 || source.Equals(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), StringComparison.OrdinalIgnoreCase)))
             {
                 exceptions.Add(new Exception($"It's recommended not to move the {source} directory, you can disable safe mode in the Settings tab to override this check"));
             }
 
-            //Check for existence of directories
-            if (!Directory.Exists(source))
-                exceptions.Add(new Exception("Source folder does not exist"));
-            
-            if (Directory.Exists(destination))
-                exceptions.Add(new Exception("Destination folder already contains a folder with the same name"));
+            //Check for existence of the source
+            try
+            {
+                isFile = !File.GetAttributes(source).HasFlag(FileAttributes.Directory);
+            }
+            catch (FileNotFoundException e)
+            {
+                exceptions.Add(new Exception("Source does not exist", e));
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
+
+            // Check the destination
+            if (destination.EndsWith($"{Path.DirectorySeparatorChar}") 
+                || destination.EndsWith($"{Path.AltDirectorySeparatorChar}"))
+            {
+                if (Directory.Exists(destination))
+                    exceptions.Add(new Exception("Destination already contains a folder with the same name"));
+                else if (File.Exists(destination))
+                    exceptions.Add(new Exception("Destination already contains a file with the same name"));
+            }
+            else
+            {
+                if (Directory.Exists(destination))
+                    exceptions.Add(new Exception("A folder with the same name as the destination already exists"));
+                else if (File.Exists(destination))
+                    exceptions.Add(new Exception("A file with the same name as the destination already exists"));
+            }
 
             try
             {
-                Form1 form = new Form1();
-                if (!form.chkBox_createDest.Checked && !Directory.Exists(Directory.GetParent(destination).FullName))
+                if (!Form1.Singleton.chkBox_createDest.Checked && !Directory.Exists(Directory.GetParent(destination).FullName))
                     exceptions.Add(new Exception("Destination folder does not exist"));
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 exceptions.Add(e);
             }
@@ -147,18 +214,28 @@ namespace FreeMove
             if (exceptions.Count > 0)
                 throw new AggregateException(exceptions);
 
+            DriveInfo dstDrive = new(Path.GetPathRoot(destination));
             long size = 0;
-            DirectoryInfo dirInf = new DirectoryInfo(source);
-            foreach (FileInfo file in dirInf.GetFiles("*", SearchOption.AllDirectories))
+
+            if (isFile)
             {
-                size += file.Length;
+                size = new FileInfo(source).Length;
             }
+            else
+            {
+                DirectoryInfo dirInf = new DirectoryInfo(source);
+                foreach (FileInfo file in dirInf.GetFiles("*", SearchOption.AllDirectories))
+                {
+                    size += file.Length;
+                }
+            }
+
             try
             {
-                DriveInfo dstDrive = new(Path.GetPathRoot(destination));
                 if (dstDrive.AvailableFreeSpace < size)
                     exceptions.Add(new Exception($"There is not enough free space on the {dstDrive.Name} disk. {size / 1000000}MB required, {dstDrive.AvailableFreeSpace / 1000000} available."));
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 exceptions.Add(e);
             }
@@ -188,11 +265,16 @@ namespace FreeMove
                             fs.Dispose();
                     }
                 };
-                if (Settings.PermCheck == Settings.PermissionCheckLevel.Fast)
+                if (isFile)
+                {
+                    CheckFile(source);
+                }
+                else if (Settings.PermCheck == Settings.PermissionCheckLevel.Fast)
                 {
                     Parallel.ForEach(Directory.GetFiles(source, "*.exe", SearchOption.AllDirectories), CheckFile);
                     Parallel.ForEach(Directory.GetFiles(source, "*.dll", SearchOption.AllDirectories), CheckFile);
-                } else
+                } 
+                else
                 {
                     Parallel.ForEach(Directory.GetFiles(source, "*", SearchOption.AllDirectories), CheckFile);
                 }
