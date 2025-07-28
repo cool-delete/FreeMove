@@ -43,6 +43,9 @@ namespace FreeMove
             Singleton = this;
             //Initialize UI elements
             InitializeComponent();
+            // 启用拖放功能
+            this.textBox_From.AllowDrop = true;
+            this.textBox_To.AllowDrop = true;
         }
 
         public Form1(string[] args) : this()
