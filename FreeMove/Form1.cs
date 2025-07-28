@@ -475,6 +475,27 @@ namespace FreeMove
         /// <summary>
         /// 处理文件被拖放到输入框中的事件
         /// </summary>
+    /// <summary>
+    /// 处理文件被拖入输入框上方的事件
+    /// </summary>
+        private void TextBox_DragEnter(object sender, EventArgs e)
+        {
+            // 检查拖入的是否是文件
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+            // 如果是文件，则显示“复制”的鼠标效果
+            e.Effect = DragDropEffects.Copy;
+            }
+            else
+            {
+            // 如果不是文件，则显示“禁止”的鼠标效果
+            e.Effect = DragDropEffects.None;
+            }
+        }
+
+    /// <summary>
+    /// 处理文件被拖放到输入框中的事件
+    /// </summary>
         private void TextBox_DragDrop(object sender, DragEventArgs e)
         {
             // 将拖放的数据转换为字符串数组（因为用户可能拖入多个文件）
@@ -487,8 +508,8 @@ namespace FreeMove
                 TextBox textBox = sender as TextBox;
                 if (textBox != null)
                 {
-                // 我们只取第一个文件的路径，并设置到文本框中
-                textBox.Text = files[0];
+                    // 我们只取第一个文件的路径，并设置到文本框中
+                    textBox.Text = files[0];
                 }
             }
         }
