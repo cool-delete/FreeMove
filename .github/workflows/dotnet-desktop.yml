@@ -25,10 +25,18 @@ jobs:
     - name: Build Solution
       run: msbuild FreeMove.sln /p:Configuration=Release
 
-    - name: Create Release Package
+
+
+    - name: Find and Package Release
       run: |
+        $exePath = Get-ChildItem -Recurse -Filter FreeMove.exe | Where-Object { $_.DirectoryName -like '*\bin\Release*' } | Select-Object -First 1
+        if ($null -eq $exePath) {
+          echo "FreeMove.exe not found in any Release directory!"
+          exit 1
+        }
+        echo "Found executable at: $($exePath.FullName)"
         mkdir release
-        cp FreeMove/bin/Release/FreeMove.exe release/
+        Copy-Item -Path $exePath.FullName -Destination release/
         Compress-Archive -Path release/* -DestinationPath FreeMove-Release.zip
       shell: pwsh
 
@@ -36,3 +44,4 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: FreeMove-Release.zip
+
