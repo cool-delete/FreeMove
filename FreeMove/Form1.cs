@@ -478,7 +478,7 @@ namespace FreeMove
     /// <summary>
     /// 处理文件被拖入输入框上方的事件
     /// </summary>
-        private void TextBox_DragEnter(object sender, EventArgs e)
+        private void TextBox_DragEnter(object sender, DragEventArgs e)
         {
             // 检查拖入的是否是文件
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
