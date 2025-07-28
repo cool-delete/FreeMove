@@ -59,9 +59,16 @@ namespace FreeMove
 
         public Form1(string[] args) : this()
         {
-            textBox_From.Text = string.Join(" ", args);
+            // 原来的代码只处理了一个参数，我们扩展它
+            if (args.Length > 0)
+            {
+                textBox_From.Text = args[0];
+            }
+            if (args.Length > 1)
+            {
+                textBox_To.Text = args[1];
+            }
         }
-
         private async void Form1_Load(object sender, EventArgs e)
         {
             SetToolTips();
@@ -93,6 +100,14 @@ namespace FreeMove
                     fastToolStripMenuItem.Checked = false;
                     fullToolStripMenuItem.Checked = true;
                     break;
+            }
+            if (IsAdministrator() && Environment.GetCommandLineArgs().Length > 1)
+            {
+                // 使用 BeginInvoke 确保窗口完全加载并显示后再执行 Begin()
+                // 这样用户可以看到操作过程，而不是一个空白窗口一闪而过
+                this.BeginInvoke((Action)(() => {
+                Begin();
+                }));
             }
         }
 
