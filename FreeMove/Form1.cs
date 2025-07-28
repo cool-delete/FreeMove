@@ -28,6 +28,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using static System.Windows.Forms.LinkLabel;
+using System.Security.Principal;
 
 namespace FreeMove
 {
@@ -357,14 +358,49 @@ namespace FreeMove
         {
             MessageBox.Show(Properties.Resources.ErrorUnauthorizedMoveDetails + ex.Message, "Error details");
         }
-
-        #region Event Handlers
-
-        private void Button_Move_Click(object sender, EventArgs e)
+        public static bool IsAdministrator()
         {
-            Begin();
+            var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
+        #region Event Handlers
+        
+        private void Button_Move_Click(object sender, EventArgs e)
+        {
+            // 检查当前是否已经是管理员权限
+            if (IsAdministrator())
+            {
+                // 如果已经是，直接执行移动操作
+                Begin();
+            }
+            else
+            {
+                // 如果不是管理员，则请求提权并重新启动程序
+                var exeName = Process.GetCurrentProcess().MainModule.FileName;
+                var startInfo = new ProcessStartInfo(exeName)
+                {
+                    // 使用 "runas" 动词，这会触发 UAC 弹窗
+                    Verb = "runas",
+                    // 把当前输入框的内容作为参数传递给新进程
+                    Arguments = $"\"{textBox_From.Text}\" \"{textBox_To.Text}\""
+                };
+
+                try
+                {
+                    Process.Start(startInfo);
+                    // 关闭当前的普通权限进程
+                    Application.Exit();
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // 如果用户在UAC弹窗中点击了“否”，会触发一个异常
+                    // 我们可以在这里给用户一个提示，或者什么都不做
+                    MessageBox.Show("操作已被取消，因为需要管理员权限才能移动。");
+                }
+            }
+        }
         //Show a directory picker for the source directory
         private void Button_BrowseFrom_Click(object sender, EventArgs e)
         {
