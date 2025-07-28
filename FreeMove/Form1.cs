@@ -48,10 +48,12 @@ namespace FreeMove
             this.textBox_From.AllowDrop = true;
             this.textBox_To.AllowDrop = true;
             // 挂载拖放事件
-        this.textBox_From.DragEnter += new DragEventHandler(TextBox_DragEnter);
-        this.textBox_To.DragEnter += new DragEventHandler(TextBox_DragEnter);
-        this.textBox_From.DragDrop += new DragEventHandler(TextBox_DragDrop);
-        this.textBox_To.DragDrop += new DragEventHandler(TextBox_DragDrop);
+            this.textBox_From.DragEnter += new DragEventHandler(TextBox_DragEnter);
+            this.textBox_To.DragEnter += new DragEventHandler(TextBox_DragEnter);
+            this.textBox_From.DragDrop += new DragEventHandler(TextBox_DragDrop);
+            this.textBox_To.DragDrop += new DragEventHandler(TextBox_DragDrop);
+            this.DragEnter += new DragEventHandler(TextBox_DragEnter); // 为主窗体挂载 DragEnter 事件
+            this.DragDrop += new DragEventHandler(TextBox_DragDrop);   // 为主窗体挂载 DragDrop 事件       
         }
 
         public Form1(string[] args) : this()
