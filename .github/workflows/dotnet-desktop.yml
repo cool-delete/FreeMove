@@ -25,8 +25,6 @@ jobs:
     - name: Build Solution
       run: msbuild FreeMove.sln /p:Configuration=Release
 
-
-
     - name: Find and Package Release
       run: |
         $exePath = Get-ChildItem -Recurse -Filter FreeMove.exe | Where-Object { $_.DirectoryName -like '*\bin\Release*' } | Select-Object -First 1
@@ -39,11 +37,8 @@ jobs:
         Copy-Item -Path "$($exePath.DirectoryName)\*" -Destination "release\" -Recurse
         Compress-Archive -Path release/* -DestinationPath FreeMove-Release.zip
       shell: pwsh
-Copy-Item -Path "$($exePath.DirectoryName)\*" -Destination "release\" -Recurse
-
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: FreeMove-Release.zip
-
