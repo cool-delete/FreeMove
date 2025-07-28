@@ -46,6 +46,11 @@ namespace FreeMove
             // 启用拖放功能
             this.textBox_From.AllowDrop = true;
             this.textBox_To.AllowDrop = true;
+            // 挂载拖放事件
+        this.textBox_From.DragEnter += new DragEventHandler(TextBox_DragEnter);
+        this.textBox_To.DragEnter += new DragEventHandler(TextBox_DragEnter);
+        this.textBox_From.DragDrop += new DragEventHandler(TextBox_DragDrop);
+        this.textBox_To.DragDrop += new DragEventHandler(TextBox_DragDrop);
         }
 
         public Form1(string[] args) : this()
@@ -465,6 +470,27 @@ namespace FreeMove
             noneToolStripMenuItem.Checked = false;
             fastToolStripMenuItem.Checked = false;
             fullToolStripMenuItem.Checked = true;
+        }
+        
+        /// <summary>
+        /// 处理文件被拖放到输入框中的事件
+        /// </summary>
+        private void TextBox_DragDrop(object sender, DragEventArgs e)
+        {
+            // 将拖放的数据转换为字符串数组（因为用户可能拖入多个文件）
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+            // 确保确实有文件被拖入
+            if (files != null && files.Length > 0)
+            {
+                // 将 sender（事件触发者）转换为 TextBox 控件
+                TextBox textBox = sender as TextBox;
+                if (textBox != null)
+                {
+                // 我们只取第一个文件的路径，并设置到文本框中
+                textBox.Text = files[0];
+                }
+            }
         }
     }
 }
