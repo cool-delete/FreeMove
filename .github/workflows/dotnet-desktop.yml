@@ -36,9 +36,11 @@ jobs:
         }
         echo "Found executable at: $($exePath.FullName)"
         mkdir release
-        Copy-Item -Path $exePath.FullName -Destination release/
+        Copy-Item -Path "$($exePath.DirectoryName)\*" -Destination "release\" -Recurse
         Compress-Archive -Path release/* -DestinationPath FreeMove-Release.zip
       shell: pwsh
+Copy-Item -Path "$($exePath.DirectoryName)\*" -Destination "release\" -Recurse
+
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
