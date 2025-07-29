@@ -50,6 +50,7 @@ namespace FreeMove
 
         public static bool MakeDirLink(string directory, string symlink)
         {
+               System.Windows.Forms.MessageBox.Show("现在即将调用 MakeDirLink 来创建目录链接 (Junction)！");
             // 启动一个隐藏的命令行进程来执行 mklink /J 命令
             var process = new Process();
             process.StartInfo.FileName = "cmd.exe";
