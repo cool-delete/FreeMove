@@ -50,11 +50,6 @@ namespace FreeMove
 
         public static bool MakeDirLink(string directory, string symlink)
         {
-            return CreateSymbolicLink(symlink, directory, SymbolicLink.Directory);
-        }
-
-        public static bool MakeFileLink(string directory, string symlink)
-        {
             // 启动一个隐藏的命令行进程来执行 mklink /J 命令
             var process = new Process();
             process.StartInfo.FileName = "cmd.exe";
@@ -69,6 +64,11 @@ namespace FreeMove
     
             // 如果命令成功执行，其退出代码为 0
             return process.ExitCode == 0;
+        }
+
+        public static bool MakeFileLink(string directory, string symlink)
+        {
+             return CreateSymbolicLink(symlink, directory, SymbolicLink.File);
         }
         #endregion
 
