@@ -160,6 +160,7 @@ namespace FreeMove
 
             if (PreliminaryCheck(source, destination, out bool isFile))
             {
+                  System.Windows.Forms.MessageBox.Show($"路径 '{source}' 的检查结果为：isFile = {isFile}");
                 try
                 {
                     source = IOHelper.NormalizePath(source);
