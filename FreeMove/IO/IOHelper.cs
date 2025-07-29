@@ -23,6 +23,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace FreeMove
 {
@@ -54,7 +55,20 @@ namespace FreeMove
 
         public static bool MakeFileLink(string directory, string symlink)
         {
-            return CreateSymbolicLink(symlink, directory, SymbolicLink.File);
+            // 启动一个隐藏的命令行进程来执行 mklink /J 命令
+            var process = new Process();
+            process.StartInfo.FileName = "cmd.exe";
+            // /c 表示执行完命令后就关闭窗口
+            // 我们用引号把路径包起来，防止路径中的空格导致问题
+            process.StartInfo.Arguments = $"/c mklink /J \"{symlink}\" \"{directory}\"";
+            process.StartInfo.CreateNoWindow = true; // 不创建窗口
+            process.StartInfo.UseShellExecute = false; // 不使用操作系统外壳
+    
+            process.Start();
+            process.WaitForExit(); // 等待命令执行完成
+    
+            // 如果命令成功执行，其退出代码为 0
+            return process.ExitCode == 0;
         }
         #endregion
 
